@@ -24,7 +24,7 @@
 #include <psapi.h>
 #include <inttypes.h>
 #include "mplayerc.h"
-
+#include <strsafe.h>
 #ifndef _DEBUG
 
 LPCWSTR GetExceptionName(DWORD code)
@@ -113,10 +113,48 @@ HMODULE GetExceptionModule(LPVOID address, LPWSTR moduleName)
     return moduleList[curModule];
 }
 
+BOOL GenerateDump(LPEXCEPTION_POINTERS pExceptionPointers)
+{
+    BOOL bMiniDumpSuccessful;
+    WCHAR szPath[MAX_PATH];
+    WCHAR szFileName[MAX_PATH];
+    WCHAR* szAppName = L"AppName";
+    WCHAR* szVersion = L"v1.0";
+    DWORD dwBufferSize = MAX_PATH;
+    HANDLE hDumpFile;
+    SYSTEMTIME stLocalTime;
+    MINIDUMP_EXCEPTION_INFORMATION ExpParam;
+
+    GetLocalTime(&stLocalTime);
+    GetTempPath(dwBufferSize, szPath);
+
+    StringCchPrintf(szFileName, MAX_PATH, L"%s%s", szPath, szAppName);
+    CreateDirectory(szFileName, NULL);
+
+    StringCchPrintf(szFileName, MAX_PATH, L"%s%s\\%s-%04d%02d%02d-%02d%02d%02d-%ld-%ld.dmp",
+        szPath, szAppName, szVersion,
+        stLocalTime.wYear, stLocalTime.wMonth, stLocalTime.wDay,
+        stLocalTime.wHour, stLocalTime.wMinute, stLocalTime.wSecond,
+        GetCurrentProcessId(), GetCurrentThreadId());
+    hDumpFile = CreateFile(szFileName, GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_WRITE | FILE_SHARE_READ, 0, CREATE_ALWAYS, 0, 0);
+
+    ExpParam.ThreadId = GetCurrentThreadId();
+    ExpParam.ExceptionPointers = pExceptionPointers;
+    ExpParam.ClientPointers = TRUE;
+
+    bMiniDumpSuccessful = MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(),
+        hDumpFile, MiniDumpWithFullMemory, &ExpParam, NULL, NULL);
+
+    return bMiniDumpSuccessful;
+}
+
+
 void HandleCommonException(LPEXCEPTION_POINTERS exceptionInfo)
 {
     wchar_t message[MAX_PATH + 255];
     wchar_t module[MAX_PATH];
+
     const wchar_t* moduleName = GetExceptionModule(exceptionInfo->ExceptionRecord->ExceptionAddress, module) ? module : _T("[UNKNOWN]");
 
     const uintptr_t codeBase = uintptr_t(GetModuleHandle(nullptr));
@@ -184,6 +222,7 @@ LONG WINAPI UnhandledException(LPEXCEPTION_POINTERS exceptionInfo)
         return EXCEPTION_EXECUTE_HANDLER;
     }
 #endif
+    GenerateDump(exceptionInfo);
 
     switch (exceptionInfo->ExceptionRecord->ExceptionCode) {
         case EXCEPTION_ACCESS_VIOLATION:

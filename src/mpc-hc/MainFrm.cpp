@@ -18339,14 +18339,27 @@ bool CMainFrame::BuildToCapturePreviewPin(
             return false;
         }
 
-        CComPtr<IBaseFilter> pSmartTee;
-        hr = pSmartTee.CoCreateInstance(CLSID_SmartTee);
-        hr = m_pGB->AddFilter(pSmartTee, L"Smart Tee (video)");
+        hr = pVidCap->FindPin(L"Capture", ppVidCapPin);
+        hr = pVidCap->FindPin(L"Preview", ppVidPrevPin);
 
-        hr = m_pGB->ConnectFilter(pPin, pSmartTee);
+        if (*ppVidCapPin == nullptr || *ppVidPrevPin == nullptr)
+        {
+            // CSource implementations
+            hr = pVidCap->FindPin(L"1", ppVidCapPin);
+            hr = pVidCap->FindPin(L"2", ppVidPrevPin);
 
-        hr = pSmartTee->FindPin(L"Preview", ppVidPrevPin);
-        hr = pSmartTee->FindPin(L"Capture", ppVidCapPin);
+            if (*ppVidCapPin == nullptr || *ppVidPrevPin == nullptr)
+            {
+                CComPtr<IBaseFilter> pSmartTee;
+                hr = pSmartTee.CoCreateInstance(CLSID_SmartTee);
+                hr = m_pGB->AddFilter(pSmartTee, L"Smart Tee (video)");
+
+                hr = m_pGB->ConnectFilter(pPin, pSmartTee);
+
+                hr = pSmartTee->FindPin(L"Preview", ppVidPrevPin);
+                hr = pSmartTee->FindPin(L"Capture", ppVidCapPin);
+            }
+        }
     }
 
     if (pAudCap || pDVAudPin) {

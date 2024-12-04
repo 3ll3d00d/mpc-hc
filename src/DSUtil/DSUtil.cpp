@@ -2241,7 +2241,8 @@ bool GetVideoFormatNameFromMediaType(const GUID& guid, CString& name) {
         return true;
     } else {
         name = L"UNKN";
-        ASSERT(false);
+        // ASSERT(false);
+        return true;
     }
 
     return false;
